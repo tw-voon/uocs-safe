@@ -27,4 +27,6 @@ Route::post('/registerUserKey', 'users@register_key')->middleware('api');
 Route::post('/searchUser', 'users@searchUser')->middleware('api');
 
 Route::get('/getMultiUser', 'users@getMultiUser')->middleware('api');
-Route::get('/addMessage', 'users@addMessage')->middleware('api');
+Route::post('/addMessage', 'users@addMessage')->middleware('api');
+Route::get('/fetchChatRoom', 'users@fetchChatRoom')->middleware('api');
+Route::post('/fetchSingleChatRoom', 'users@fetchSingleChatRoom')->middleware('api');
