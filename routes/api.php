@@ -30,3 +30,5 @@ Route::get('/getMultiUser', 'users@getMultiUser')->middleware('api');
 Route::post('/addMessage', 'users@addMessage')->middleware('api');
 Route::get('/fetchChatRoom', 'users@fetchChatRoom')->middleware('api');
 Route::post('/fetchSingleChatRoom', 'users@fetchSingleChatRoom')->middleware('api');
+
+Route::get('/testMessage', 'users@testMessage')->middleware('api');

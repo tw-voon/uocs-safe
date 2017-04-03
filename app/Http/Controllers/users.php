@@ -7,8 +7,10 @@ use App\User;
 use App\Model\message;
 use App\Model\chat_rooms;
 use App\Http\Controllers\GCM;
+use App\Http\Controllers\Push;
 use Validator;
 use DB;
+use Carbon\Carbon;
 
 class users extends Controller
 {
@@ -173,6 +175,46 @@ class users extends Controller
         $newMessage->message = $data['message'];
         $newMessage->save();
 
+        $i = 0;
+
+        $userID = (int)$data['user_id'];
+
+        $user = User::where('id', '=', $request['user_id'])->select('id')->get();
+        $chatRoomUser = message::where('chat_room_id', $request['chat_room_id'])->select('user_id')->distinct()->get();
+        // return $chatRoomUser[0]->user_id;
+        $userData = User::find($user[0]->id);
+        // echo $chatRoomUser;
+        while ($i < count($chatRoomUser)) {
+        
+        $userFIrebaseID = User::find($chatRoomUser[$i]->user_id);
+        $info = array();
+        $info['user'] = $userData;
+        $info['message'] = $newMessage;
+        $info['chat_room_id'] = $request['chat_room_id'];
+        $info['created_at'] = date('Y-m-d G:i:s');
+
+        $push = new Push();
+        $push->setTitle("Google Cloud Messaging");
+        $push->setIsBackground(FALSE);
+        $push->setFlag(1);
+        $push->setData($info);
+
+        $gcm = new GCM();
+        $gcm->send($userFIrebaseID['firebaseID'], $push->getPush());
+        $i++;        
+    }      
+
+        echo json_encode(['message' => $push->getPush(),"user" =>$userData,  "error" => false]);
+    }
+
+    function testMessage(Request $request){
+        $data = $request->all();
+        $newMessage = new message();
+        $newMessage->chat_room_id = $data['chat_room_id'];
+        $newMessage->user_id = $data['user_id'];
+        $newMessage->message = $data['message'];
+        $newMessage->save();
+
         $userID = (int)$data['user_id'];
 
         $user = User::where('id', '=', $request['user_id'])->select('id')->get();
@@ -182,19 +224,19 @@ class users extends Controller
 
         $info = array();
         $info['user'] = $userData;
-        $info['message'] = $request['message'];
+        $info['message'] = $newMessage;
         $info['chat_room_id'] = $request['chat_room_id'];
+        $info['created_at'] = date('Y-m-d G:i:s');
 
-        $res = array();
-        $res['title'] = "Google Cloud Messaging";
-        $res['is_background'] = FALSE;
-        $res['flag'] = 2;
-        $res['data'] = $newMessage;
+        $push = new Push();
+        $push->setTitle("Google Cloud Messaging");
+        $push->setIsBackground(FALSE);
+        $push->setFlag(1);
+        $push->setData($info);
 
         $gcm = new GCM();
-        $gcm->send($userData['firebaseID'], $res);
+        $gcm->send($userData['firebaseID'], $push->getPush());
 
-
-        echo json_encode(['message' => $newMessage,"user" =>$userData,  "error" => false]);
+        echo json_encode(['message' => $push->getPush(),"user" =>$userData,  "error" => false]);
     }
 }

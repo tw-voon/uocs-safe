@@ -8,6 +8,8 @@ class GCM extends Controller
 {
     // sending push message to single user by gcm registration id
     public function send($to, $message) {
+        // echo $to;
+        // print_r($message);
         $fields = array(
             'to' => $to,
             'data' => $message,
@@ -38,10 +40,10 @@ class GCM extends Controller
     private function sendPushNotification($fields) {
  
         // Set POST variables
-        $url = 'https://gcm-http.googleapis.com/gcm/send';
+        $url = 'https://fcm.googleapis.com/fcm/send';
  
         $headers = array(
-            'Authorization: key=' . 'AIzaSyBmOrJ8wV5c8gLsz5vTa-PLyx1EgYKrNKk',
+            'Authorization: key=' . 'AAAAznTO4ok:APA91bG9f9jSzCo-GuyWwaUCV2NuN3c-4r8Vf-hRe0g1r4ttwa-rbMCqXFl3Pf2rEJiGwOdUORePu-eqV5Plong0sp0HXJ1445gWE9cMq47o7BUMwLijNhSjfUngCcaF_SlpmS5VAPDk',
             'Content-Type: application/json'
         );
         // Open connection
