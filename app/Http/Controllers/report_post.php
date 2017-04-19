@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Model\report_posts;
 use App\Model\locations;
+use App\Model\comments;
+use App\User;
+use App\Http\Controllers\GCM;
+use App\Http\Controllers\Push;
 use File;
 use Carbon\Carbon;
 use DB;
@@ -67,10 +71,10 @@ class report_post extends Controller
 
     	if($status){
     		
-    		return ['text'=>"Success"];
+    		return "Success";
     	}
     	else
-    		return ['text'=>"Success"];
+    		return "Fail";
     	// return ['data'=>$newPost->save();, 'text'=>"Hello world"];
     }
 
@@ -86,14 +90,84 @@ class report_post extends Controller
             ->get();
 
         return response()->json($report);
+    }
 
+    function getSingleReport(Request $request){
+
+        $reportID = $request->input('report_id');
+
+        $report = DB::table('report')
+            ->join('users', 'report.user_ID', '=', 'users.id')
+            ->join('location', 'report.location_ID', '=', 'location.id')
+            ->where('report.report_ID', $reportID)
+            ->get();
+
+        return response()->json($report);
 
     }
 
-    function getLocation(Request $request){
-        // $userID = $request->input('userID');
+    function addComment(Request $request){
 
-        // $report = DB::table('report')
-        //         ->join('location', 'report.location_ID')
+        $report_id = $request->input('report_id');
+        $user_id = $request->input('user_id');
+        $comment = $request->input('comment');
+        $i = 0;
+
+        $newComment = new comments();
+        $newComment->report_id = $report_id;
+        $newComment->user_id = $user_id;
+        $newComment->comment_msg = $comment;
+
+        if($status = $newComment->save()){
+
+            $user = comments::where('report_id', '=', $report_id)
+                    ->select('user_id')->distinct()->get();
+
+            while($i < count($user)){
+                $userFIrebaseID = User::find($user[$i]->user_id);
+                $info = array();
+                // $info['user'] = $userData;
+                $info['message'] = $newComment;
+                $info['report_id'] = $request['report_id'];
+                $info['created_at'] = date('Y-m-d G:i:s');
+
+                $push = new Push();
+                $push->setTitle("New Comment");
+                $push->setIsBackground(FALSE);
+                $push->setFlag(1);
+                $push->setData($info);
+
+                $gcm = new GCM();
+                $gcm->send($userFIrebaseID['firebaseID'], $push->getPush());
+                $i++;
+            }
+
+            $comments = DB::table('comments')
+            ->select('comments.*', 'users.name', 'users.id as user_id')
+            ->join('users', 'comments.user_id', '=', 'users.id')
+            ->where('comments.report_id', $report_id)
+            ->where('comments.id', $newComment->id)
+            ->get();
+
+            return response()->json($comments);
+        }
+        else {
+            return "Fail";
+        }
+
+    }
+
+    function getComment(Request $request){
+
+        $report_id = $request->input('report_id');
+
+        $comments = DB::table('comments')
+            ->select('comments.*', 'users.name', 'users.id as user_id')
+            ->join('users', 'comments.user_id', '=', 'users.id')
+            ->where('comments.report_id', $report_id)
+            ->orderby('comments.created_at', 'asc')
+            ->get();
+
+        return response()->json($comments);
     }
 }

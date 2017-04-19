@@ -6,10 +6,12 @@ use Illuminate\Http\Request;
 use App\User;
 use App\Model\message;
 use App\Model\chat_rooms;
+use App\Model\chat_handler;
 use App\Http\Controllers\GCM;
 use App\Http\Controllers\Push;
 use Validator;
 use DB;
+use File;
 use Carbon\Carbon;
 
 class users extends Controller
@@ -17,19 +19,21 @@ class users extends Controller
     function login(Request $request)
     {
 
+        // return json_encode($request);
+
     	if (User::where('name', '=', $request['name'])->exists()) 
     	{
     		$userID = User::where('name', '=', $request['name'])->select('id','password')->get();
     		$user = User::find($userID[0]->id);
     		if($this->verifyUser($user, $request))
-    			return ["status" => "success", "data" => $user];
+    			return json_encode(["status" => "success", "data" => $user]);
     		else
-    			return ["status"=>"fail", "data" => "Wrong email/password"];
+    			return json_encode(["status"=>"fail", "data" => "Wrong email/password"]);
 
 		}
 		else
 		{
-			return ["status" => "fail", "data" => "User does not exist, Please register or continue as Guest User"];
+			return json_encode(["status" => "fail", "data" => "User does not exist, Please register or continue as Guest User"]);
 		}
 
     	// return $request['pass'];
@@ -42,6 +46,33 @@ class users extends Controller
     		return true;
     	else 
     		return false;
+    }
+
+    function addAvatar(Request $request){
+
+        $images = $request->input('image');
+        $userID = $request->input('user_id');
+
+        $myDate = date("Y-m-d");
+        $myTime = date("h-i-sa");
+        $serverPath = "http://" . $_SERVER['SERVER_ADDR'] ."/uocs-safe/public/profile";
+
+        $image = base64_decode($images);
+        $image_name= $userID. "-" . $myDate . $myTime . '.png';
+        $path = public_path() . "/profile/". $userID ."/".$image_name;
+        $dir = public_path() . "/profile/". $userID ."/";
+
+        if(!File::exists($dir)) {
+            $result = File::makeDirectory(public_path() . "/profile/". $userID ."/", 0777, true);
+        }
+
+        $result2 = file_put_contents($path, $image);
+        $user = User::find((int)$userID);
+        $user->avatar_link = $serverPath."/".$userID."/".$image_name;
+        $user->update();
+
+        return json_encode(["status" => "success"]);
+
     }
 
     function register_user(Request $request)
@@ -83,33 +114,88 @@ class users extends Controller
             return ["status" => "Something went wrong"];
     }
 
-    function register_key(Request $request)
+    function register_key(Request $request)    
     {
         $data = $request->all();
-
         $user = User::find($data['userID']);
         $user->firebaseID = $data['token'];
-        $status = $user->update();
+        return json_encode(["status" => $status = $user->update()]);
 
-        if($status)
-            return "success";
-        else return "fail";
+        // $user = User::find($data['userID']);
+        // // if(count($user) != 0){
+        //     $user->firebaseID = $data['token'];
+        //     $status = $user->update();
+        // // }
+        
+
+        // if($status)
+        //     return "success";
+        // else 
+        //     return "fail";
 
     }
 
-    function searchUser(Request $request){
+    function search_user(Request $request){
         $data = $request->all();
+        $response = array();
 
-        if (User::where('name', '=', $request['name'])->exists()){
-            $userID = User::where('name', '=', $request['name'])->select('id','password')->get();
-            $user = User::find($userID[0]->id);
-            return ["status" => "success", "data" => $user];
+        if($request['name'] != null)
+        if (User::where('name', 'like', $request['name'])->exists()){
+            $userID = User::where('name', 'like', '%'.$request['name'].'%')->select('id')->get();
+            foreach ($userID as $id) {
+                $user = User::find($id);
+                array_push($response, $user);
+            }
+            
+            return json_encode(["status" => "success", "data" => $response]);
         }
-        else return ["status" => "fail", "data" => "User not exists in this application"];
+        else return json_encode(["status" => "fail", "data" => "User not exists in this application"]);
+        else return json_encode(["status" => "fail", "data" => "User not exists in this application"]);
     }
 
-    function fetchChatRoom(){
-        echo json_encode(["chat_rooms" => chat_rooms::all(), "error" => false]);
+
+    function fetchChatRoom(Request $request){
+
+        $user_id = $request->input('user_id');
+
+        $chat_room = DB::table('chat_handler')
+                    ->join('chat_rooms', 'chat_rooms.chat_room_id', 'chat_handler.chat_room_id')
+                    ->where('chat_handler.user_id', $user_id)
+                    ->orderBy('chat_rooms.created_at', 'desc')
+                    ->get();
+
+        echo json_encode(["chat_rooms" => $chat_room, "error" => false]);
+    }
+
+    function addUser(Request $request){
+
+        $user_id = (int)$request->input('user_id');
+        $target_user_id = (int)$request->input('target_user_id');
+        $user = User::find($target_user_id);
+
+        $chat_validate = DB::table('chat_handler')
+                        ->where('user_id', $user_id)
+                        ->where('target_user_id', $target_user_id)
+                        ->pluck('handler_id');
+
+        if(count($chat_validate) == 0){
+
+            $chat_room = new chat_rooms();
+            $chat_handler = new chat_handler();
+            $chat_room->name = $user->name;
+            $chat_room->save();
+
+            $chat_handler->user_id =$user_id;
+            $chat_handler->target_user_id = $target_user_id;
+            $chat_handler->chat_room_id = $chat_room->chat_room_id;
+            $chat_handler->save();
+
+            return json_encode(["status" => "Success"]);
+
+        } else return json_encode(["status" => "Fail"]);
+
+
+        
     }
 
     function fetchSingleChatRoom(Request $request){
