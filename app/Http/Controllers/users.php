@@ -120,19 +120,6 @@ class users extends Controller
         $user = User::find($data['userID']);
         $user->firebaseID = $data['token'];
         return json_encode(["status" => $status = $user->update()]);
-
-        // $user = User::find($data['userID']);
-        // // if(count($user) != 0){
-        //     $user->firebaseID = $data['token'];
-        //     $status = $user->update();
-        // // }
-        
-
-        // if($status)
-        //     return "success";
-        // else 
-        //     return "fail";
-
     }
 
     function search_user(Request $request){
@@ -159,9 +146,11 @@ class users extends Controller
         $user_id = $request->input('user_id');
 
         $chat_room = DB::table('chat_handler')
+                    ->select('chat_rooms.chat_room_id', 'chat_rooms.name', 'chat_rooms.created_at')
                     ->join('chat_rooms', 'chat_rooms.chat_room_id', 'chat_handler.chat_room_id')
                     ->where('chat_handler.user_id', $user_id)
                     ->orderBy('chat_rooms.created_at', 'desc')
+                    ->distinct()
                     ->get();
 
         echo json_encode(["chat_rooms" => $chat_room, "error" => false]);
@@ -169,30 +158,94 @@ class users extends Controller
 
     function addUser(Request $request){
 
-        $user_id = (int)$request->input('user_id');
-        $target_user_id = (int)$request->input('target_user_id');
-        $user = User::find($target_user_id);
+        $target_user_id = $request->input('target_user_id');
+        $user_id = $request->input('user_id');
+        $group_name = $request->input('group_name');
+        $found = true;
 
-        $chat_validate = DB::table('chat_handler')
-                        ->where('user_id', $user_id)
-                        ->where('target_user_id', $target_user_id)
-                        ->pluck('handler_id');
 
-        if(count($chat_validate) == 0){
+        $process_1 = trim($target_user_id,'[]');
+        $process_2 = preg_replace('/\s+/', '', $process_1);
+        $result = explode(',',$process_2);
 
-            $chat_room = new chat_rooms();
-            $chat_handler = new chat_handler();
-            $chat_room->name = $user->name;
-            $chat_room->save();
+        /*Validate whether this group has been created before*/
+        foreach ($result as $value) {
 
-            $chat_handler->user_id =$user_id;
-            $chat_handler->target_user_id = $target_user_id;
-            $chat_handler->chat_room_id = $chat_room->chat_room_id;
-            $chat_handler->save();
+            $find_room = chat_handler::where('target_user_id', $value)
+                    ->where('user_id', $user_id)
+                    ->get();
 
-            return json_encode(["status" => "Success"]);
+            if(count($find_room) == 0)
+                $found = false;
 
-        } else return json_encode(["status" => "Fail"]);
+        }
+
+        if(!$found){
+
+            /*Create the room first*/
+            $chat_rooms = new chat_rooms();
+            $chat_rooms->name = $group_name;
+            $chat_rooms->save();
+
+            foreach ($result as $id) {
+
+                $chat_handler = new chat_handler();
+                $chat_handler->user_id = $user_id;
+                $chat_handler->target_user_id = (int)$id;
+                $chat_handler->chat_room_id = $chat_rooms->chat_room_id;
+                $chat_handler->save();
+
+            }
+
+        }
+        // $user_id = chat_handler::whereIn('target_user_id', $result)
+        //             ->where('user_id', $user_id)
+        //             ->get();
+
+        // /*Create the room first*/
+        // $chat_rooms = new chat_rooms();
+        // $chat_rooms->name = $group_name;
+        // $chat_rooms->save();
+
+        // foreach ($result as $id) {
+
+        //     $chat_handler = new chat_handler();
+        //     $chat_handler->user_id = $user_id;
+        //     $chat_handler->target_user_id = $id;
+        //     $chat_handler->chat_room_id = $chat_rooms->chat_room_id;
+        //     $chat_handler->save();
+
+        // }
+
+        // echo $result;
+        if(!$found)
+            return json_encode(["target_user_id" => $user_id, "user_id" => $user_id]);
+        else return "room found";
+
+        // $user_id = (int)$request->input('user_id');
+        // $target_user_id = (int)$request->input('target_user_id');
+        // $user = User::find($target_user_id);
+
+        // $chat_validate = DB::table('chat_handler')
+        //                 ->where('user_id', $user_id)
+        //                 ->where('target_user_id', $target_user_id)
+        //                 ->pluck('handler_id');
+
+        // if(count($chat_validate) == 0){
+
+        //     $chat_room = new chat_rooms();
+        //     $chat_handler = new chat_handler();
+        //     $chat_room->name = $user->name;
+        //     $chat_room->save();
+
+        //     $chat_handler->user_id =$user_id;
+        //     $chat_handler->target_user_id = $target_user_id;
+        //     $chat_handler->chat_room_id = $chat_room->chat_room_id;
+        //     $chat_handler->save();
+
+        //     return json_encode(["status" => "Success"]);
+
+        // } else return json_encode(["status" => "Fail"]);
 
 
         
