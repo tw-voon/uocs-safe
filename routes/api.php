@@ -33,10 +33,12 @@ Route::post('/get_details_tip', 'safety_tip@getDetailsTips')->middleware('api');
 Route::post('/add_avatar', 'users@addAvatar')->middleware('api');
 Route::post('/add_chat_user', 'users@addUser')->middleware('api');
 Route::post('/search_user', 'users@search_user')->middleware('api');
+Route::post('/get_user_report', 'users@getOwnReport')->middleware('api');
 
 Route::get('/getMultiUser', 'users@getMultiUser')->middleware('api');
 Route::post('/addMessage', 'users@addMessage')->middleware('api');
 Route::post('/fetchChatRoom', 'users@fetchChatRoom')->middleware('api');
 Route::post('/fetchSingleChatRoom', 'users@fetchSingleChatRoom')->middleware('api');
+Route::post('/fetch_user_activity', 'users@get_Activity')->middleware('api');
 
 Route::get('/testMessage', 'users@testMessage')->middleware('api');

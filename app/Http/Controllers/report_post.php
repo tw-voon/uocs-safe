@@ -6,15 +6,26 @@ use Illuminate\Http\Request;
 use App\Model\report_posts;
 use App\Model\locations;
 use App\Model\comments;
+use App\Model\approve_handler;
+use App\Model\activity_handler;
 use App\User;
 use App\Http\Controllers\GCM;
 use App\Http\Controllers\Push;
+use App\Http\Controllers\Helper\helper;
 use File;
 use Carbon\Carbon;
 use DB;
 
 class report_post extends Controller
 {
+
+    private $helper;
+
+    public function __construct()
+    {
+        $this->helper = new helper();
+    }
+
     public function index(Request $request)
     {
     	$title = $request->input('title');
@@ -69,6 +80,13 @@ class report_post extends Controller
 
     	$status = $newPost->save();
 
+        $post_handler = new approve_handler();
+        $post_handler->report_id = $newPost->report_ID;
+        $post_handler->status_id = 3;
+        $post_handler->save();
+
+        $this->helper->keep_activity($userID, $userID, 'Report', $newPost->report_ID);
+
     	if($status){
     		
     		return "Success";
@@ -119,31 +137,32 @@ class report_post extends Controller
         $newComment->comment_msg = $comment;
 
         if($status = $newComment->save()){
-
-            $user = comments::where('report_id', '=', $report_id)
-                    ->select('user_id')->distinct()->get();
+            $user = report_posts::where('report_id', '=', $report_id)
+                    ->select('user_id')->get();
 
             while($i < count($user)){
-                $userFIrebaseID = User::find($user[$i]->user_id);
-                $info = array();
-                // $info['user'] = $userData;
-                $info['message'] = $newComment;
-                $info['report_id'] = $request['report_id'];
-                $info['created_at'] = date('Y-m-d G:i:s');
+                if($user_id != $user[$i]->user_id){
+                    $userFIrebaseID = User::find($user[$i]->user_id);
+                    $info = array();
+                    $info['message'] = $userFIrebaseID['name']." has commented on your report";
+                    $info['report_id'] = $request['report_id'];
+                    $info['created_at'] = date('Y-m-d G:i:s');
 
-                $push = new Push();
-                $push->setTitle("New Comment");
-                $push->setIsBackground(FALSE);
-                $push->setFlag(1);
-                $push->setData($info);
+                    $push = new Push();
+                    $push->setTitle("New Comment");
+                    $push->setIsBackground(FALSE);
+                    $push->setFlag(3);
+                    $push->setData($info);
 
-                $gcm = new GCM();
-                $gcm->send($userFIrebaseID['firebaseID'], $push->getPush());
-                $i++;
+                    $gcm = new GCM();
+                    $status = $gcm->send($userFIrebaseID['firebaseID'], $push->getPush());
+                    $this->helper->keep_activity($user_id, $user[$i]->user_id, "Comment", $report_id);
+                }
+                $i++;            
             }
 
             $comments = DB::table('comments')
-            ->select('comments.*', 'users.name', 'users.id as user_id')
+            ->select('comments.*', 'users.name', 'users.id as user_id', 'users.avatar_link')
             ->join('users', 'comments.user_id', '=', 'users.id')
             ->where('comments.report_id', $report_id)
             ->where('comments.id', $newComment->id)
@@ -162,7 +181,7 @@ class report_post extends Controller
         $report_id = $request->input('report_id');
 
         $comments = DB::table('comments')
-            ->select('comments.*', 'users.name', 'users.id as user_id')
+            ->select('comments.*', 'users.name', 'users.id as user_id', 'users.avatar_link')
             ->join('users', 'comments.user_id', '=', 'users.id')
             ->where('comments.report_id', $report_id)
             ->orderby('comments.created_at', 'asc')

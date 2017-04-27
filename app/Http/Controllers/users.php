@@ -7,8 +7,10 @@ use App\User;
 use App\Model\message;
 use App\Model\chat_rooms;
 use App\Model\chat_handler;
+use App\Model\activity_handler;
 use App\Http\Controllers\GCM;
 use App\Http\Controllers\Push;
+use App\Http\Controllers\Helper\helper;
 use Validator;
 use DB;
 use File;
@@ -16,6 +18,14 @@ use Carbon\Carbon;
 
 class users extends Controller
 {
+
+    private $helper;
+
+    public function __construct()
+    {
+        $this->helper = new helper();
+    }
+
     function login(Request $request)
     {
 
@@ -88,21 +98,6 @@ class users extends Controller
             return $v->messages()->first();
         }
 
-        // $this->validate($request, 
-        //     ['name' => 'required|unique:users'],
-        //     ['name.required' => 'Name is required'],
-        //     ['name.unique:users' => 'This name was taken by another user'],
-        //     ['pass' => 'required|min:6'],
-        //     ['pass.required' => 'Password is required'],
-        //     ['pass.min:6' => 'Password\' must be at least 6']);
-
-
-
-        // $this->validate($request, [
-        //     'name' => 'required|unique:users',
-        //     'password' => 'required|min:6'
-        //     ]);
-
         $users = new User();
         $users->name = $data['name'];
         $users->password = $data['password'];
@@ -149,6 +144,7 @@ class users extends Controller
                     ->select('chat_rooms.chat_room_id', 'chat_rooms.name', 'chat_rooms.created_at')
                     ->join('chat_rooms', 'chat_rooms.chat_room_id', 'chat_handler.chat_room_id')
                     ->where('chat_handler.user_id', $user_id)
+                    ->orwhere('chat_handler.target_user_id', $user_id)
                     ->orderBy('chat_rooms.created_at', 'desc')
                     ->distinct()
                     ->get();
@@ -198,56 +194,9 @@ class users extends Controller
             }
 
         }
-        // $user_id = chat_handler::whereIn('target_user_id', $result)
-        //             ->where('user_id', $user_id)
-        //             ->get();
-
-        // /*Create the room first*/
-        // $chat_rooms = new chat_rooms();
-        // $chat_rooms->name = $group_name;
-        // $chat_rooms->save();
-
-        // foreach ($result as $id) {
-
-        //     $chat_handler = new chat_handler();
-        //     $chat_handler->user_id = $user_id;
-        //     $chat_handler->target_user_id = $id;
-        //     $chat_handler->chat_room_id = $chat_rooms->chat_room_id;
-        //     $chat_handler->save();
-
-        // }
-
-        // echo $result;
         if(!$found)
             return json_encode(["target_user_id" => $user_id, "user_id" => $user_id]);
         else return "room found";
-
-        // $user_id = (int)$request->input('user_id');
-        // $target_user_id = (int)$request->input('target_user_id');
-        // $user = User::find($target_user_id);
-
-        // $chat_validate = DB::table('chat_handler')
-        //                 ->where('user_id', $user_id)
-        //                 ->where('target_user_id', $target_user_id)
-        //                 ->pluck('handler_id');
-
-        // if(count($chat_validate) == 0){
-
-        //     $chat_room = new chat_rooms();
-        //     $chat_handler = new chat_handler();
-        //     $chat_room->name = $user->name;
-        //     $chat_room->save();
-
-        //     $chat_handler->user_id =$user_id;
-        //     $chat_handler->target_user_id = $target_user_id;
-        //     $chat_handler->chat_room_id = $chat_room->chat_room_id;
-        //     $chat_handler->save();
-
-        //     return json_encode(["status" => "Success"]);
-
-        // } else return json_encode(["status" => "Fail"]);
-
-
         
     }
 
@@ -269,41 +218,7 @@ class users extends Controller
 
                         if(count($messageDetails)!=0)
                             return ["messages" => $messageDetails, "error" => false];
-                        else return ["error" => true];
-
-        // while ($int < count($messageID)) {
-        //     $userInvolved = DB::table('messages')
-        //                 ->where('chat_room_id', $request['chat_room_id'])
-        //                 ->select('user_id')
-        //                 ->distinct()
-        //                 ->get();
-
-        //                 $int++;
-
-        //                 return $userInvolved;
-        // }
-
-        // $userInvolved = DB::table('messages')
-        //                 ->where('chat_room_id', $request['chat_room_id'])
-        //                 ->pluck('user_id');
-
-        // $userDetails = DB::table('users')
-        //             ->whereIn('id', $userInvolved)
-        //             ->select('id','name')
-        //             ->get();
-
-        // $messages = DB::table('messages')
-        //             ->whereIn('message_id', $messageID)
-        //             ->get();
-
-        // $messages['user'] = $userDetails;
-
-        // if(count($messages) == 0){
-        //     return json_encode(["error" => true]);
-        // } else {
-        //     return json_encode(["messages" => $messages, "error" => false]);
-        // }
-        
+                        else return ["error" => true];        
     }
 
     function addMessage(Request $request){
@@ -315,17 +230,38 @@ class users extends Controller
         $newMessage->save();
 
         $i = 0;
+        $users = array();
 
         $userID = (int)$data['user_id'];
 
         $user = User::where('id', '=', $request['user_id'])->select('id')->get();
-        $chatRoomUser = message::where('chat_room_id', $request['chat_room_id'])->select('user_id')->distinct()->get();
-        // return $chatRoomUser[0]->user_id;
+
+        $chatRoomTargetUser = chat_handler::where('chat_room_id', $request['chat_room_id'])
+                            ->distinct()
+                            ->pluck('target_user_id');
+
+        foreach ($chatRoomTargetUser as $key => $value) {
+            if($value != $request['user_id']){
+                if(!in_array($value, $users))
+                    array_push($users, $value);
+            }
+        }
+
+        $chatRoomUser = chat_handler::where('chat_room_id', $request['chat_room_id'])->select('user_id')->distinct()->pluck('user_id');
+
+        foreach ($chatRoomUser as $key => $value) {
+            if($value != $request['user_id']){
+                if(!in_array($value, $users))
+                    array_push($users, $value);
+            }
+        }
+        
+        // return $users;
         $userData = User::find($user[0]->id);
         // echo $chatRoomUser;
-        while ($i < count($chatRoomUser)) {
+        while ($i < count($users)) {
         
-        $userFIrebaseID = User::find($chatRoomUser[$i]->user_id);
+        $userFIrebaseID = User::find($users[$i]);
         $info = array();
         $info['user'] = $userData;
         $info['message'] = $newMessage;
@@ -333,13 +269,14 @@ class users extends Controller
         $info['created_at'] = date('Y-m-d G:i:s');
 
         $push = new Push();
-        $push->setTitle("Google Cloud Messaging");
+        $push->setTitle($userData->name);
         $push->setIsBackground(FALSE);
         $push->setFlag(1);
         $push->setData($info);
 
         $gcm = new GCM();
         $gcm->send($userFIrebaseID['firebaseID'], $push->getPush());
+        // print_r($userFIrebaseID);
         $i++;        
     }      
 
@@ -377,5 +314,49 @@ class users extends Controller
         $gcm->send($userData['firebaseID'], $push->getPush());
 
         echo json_encode(['message' => $push->getPush(),"user" =>$userData,  "error" => false]);
+    }
+
+    function getOwnReport(Request $request){
+
+        $own_id = $request->input('user_id');
+        $report = DB::table('approve_handler')
+                ->join('status_table', 'status_table.id', 'approve_handler.status_id')
+                ->join('report', 'report.report_ID', 'approve_handler.report_id')
+                ->where('report.user_ID', $own_id)
+                ->get();
+
+        return json_encode($report);
+    }
+
+    function get_Activity(Request $request){
+
+        $data = $request->all();
+
+        $activity = activity_handler::where('action_done_on', $data['user_id'])
+                    ->select('users.id', 
+                        'users.avatar_link',
+                        'activity_handler.report_id', 
+                        'activity_handler.action_name',
+                        'activity_handler.created_at',
+                        'activity_handler.action_done_by')
+                    ->join('users', 'users.id', 'activity_handler.action_done_by')
+                    ->orderBy('activity_handler.created_at', 'desc')
+                    ->get();
+        return json_encode($activity);
+
+        /*$activity = DB::table('activity_handler')
+                    ->where('action_done_on', $data['user_id'])
+                    ->pluck('action_done_on', 'action_done_by');
+
+        foreach ($activity as $key => $value) {
+            array_push($user_id, $key);
+            array_push($user_id, $value);
+        }
+
+        foreach ($user_id as $value) {
+            $data = users::find($value);
+
+        }
+        return json_encode($user_id);*/
     }
 }
