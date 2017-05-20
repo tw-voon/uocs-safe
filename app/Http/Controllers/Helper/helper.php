@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\User;
 use App\Model\message;
+use App\Model\mobile_user;
 use App\Model\chat_rooms;
 use App\Model\chat_handler;
 use App\Model\report_posts;
+use App\Model\report_handler;
 use App\Http\Controllers\GCM;
 use App\Http\Controllers\Push;
 use App\Model\activity_handler;
@@ -27,7 +29,7 @@ class helper extends Controller
     	switch ($action_name) {
 
     		case 'Comment':
-    			$done_by = User::find($user_done);
+    			$done_by = mobile_user::find($user_done);
     			$report = report_posts::find($report_id);
     			$newActivity->action_done_by = $user_done;
     			$newActivity->action_done_on = $on_user;
@@ -37,7 +39,7 @@ class helper extends Controller
     			break;
 
             case 'Report':
-                $done_by = User::find($user_done);
+                $done_by = mobile_user::find($user_done);
                 $report = report_posts::find($report_id);
                 $newActivity->action_done_by = $user_done;
                 $newActivity->action_done_on = $on_user;
@@ -47,15 +49,26 @@ class helper extends Controller
                 break;
 
     		case 'Approved':
-    			$report = report_posts::find('report_id');
+    			$report = report_posts::find($report_id);
+                $newActivity->action_done_by = $user_done;
     			$newActivity->action_done_on = $on_user;
     			$newActivity->report_id = $report_id;
     			$newActivity->action_name = "Your <b>" . $report->report_Title . "</b> had been approved.";
     			$newActivity->save();
     			break;
 
+            case 'Pending':
+                $report = report_posts::find($report_id);
+                $newActivity->action_done_by = $user_done;
+                $newActivity->action_done_on = $on_user;
+                $newActivity->report_id = $report_id;
+                $newActivity->action_name = "Your <b>" . $report->report_Title . "</b> had been suspended.";
+                $newActivity->save();
+                break;
+
     		case 'Canceled':
-    			$report = report_posts::find('report_id');
+    			$report = report_posts::find($report_id);
+                $newActivity->action_done_by = $user_done;
     			$newActivity->action_done_on = $on_user;
     			$newActivity->report_id = $report_id;
     			$newActivity->action_name = "Your <b>" . $report->report_Title . "</b> had been canceled.";
@@ -65,7 +78,20 @@ class helper extends Controller
     		default:
     			break;
     	}
-    	
-    
+    }
+
+    function mark_report($ids){
+
+        foreach ($ids as $id) {
+            $handler = report_handler::find($id);
+            $handler->reported = 1;
+            $handler->save();
+        }
+
+    }
+
+    function getAllToken(){
+        $token = mobile_user::select('firebaseID')->get();
+        return $token;
     }
 }

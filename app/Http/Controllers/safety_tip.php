@@ -21,6 +21,7 @@ class safety_tip extends Controller
 
     	$tips = DB::table('safetytips')
     			->where('category_id', '=', $category_id)
+                ->where('status', 1)
     			->get();
 
     			return response()->json($tips);

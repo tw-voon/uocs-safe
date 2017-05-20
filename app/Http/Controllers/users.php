@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\User;
+use App\Model\mobile_user;
 use App\Model\message;
 use App\Model\chat_rooms;
 use App\Model\chat_handler;
@@ -31,10 +31,10 @@ class users extends Controller
 
         // return json_encode($request);
 
-    	if (User::where('name', '=', $request['name'])->exists()) 
+    	if (mobile_user::where('name', '=', $request['name'])->exists()) 
     	{
-    		$userID = User::where('name', '=', $request['name'])->select('id','password')->get();
-    		$user = User::find($userID[0]->id);
+    		$userID = mobile_user::where('name', '=', $request['name'])->select('id','password')->get();
+    		$user = mobile_user::find($userID[0]->id);
     		if($this->verifyUser($user, $request))
     			return json_encode(["status" => "success", "data" => $user]);
     		else
@@ -65,7 +65,8 @@ class users extends Controller
 
         $myDate = date("Y-m-d");
         $myTime = date("h-i-sa");
-        $serverPath = "http://" . $_SERVER['SERVER_ADDR'] ."/uocs-safe/public/profile";
+        // $serverPath = "http://" . $_SERVER['SERVER_ADDR'] ."/uocs-safe/public/profile";
+        $serverPath = "http://" . $_SERVER['SERVER_NAME'] ."/uocs-safe/public/profile";
 
         $image = base64_decode($images);
         $image_name= $userID. "-" . $myDate . $myTime . '.png';
@@ -77,11 +78,11 @@ class users extends Controller
         }
 
         $result2 = file_put_contents($path, $image);
-        $user = User::find((int)$userID);
+        $user = mobile_user::find((int)$userID);
         $user->avatar_link = $serverPath."/".$userID."/".$image_name;
         $user->update();
 
-        return json_encode(["status" => "success"]);
+        return json_encode(["status" => "success", "avatar" => $user->avatar_link]);
 
     }
 
@@ -90,7 +91,7 @@ class users extends Controller
         $data = $request->all();
 
         $v = Validator::make($data, [
-            'name' => 'required|unique:users',
+            'name' => 'required|unique:mobile_user',
             'password' => 'required|min:6'
         ]);
 
@@ -98,13 +99,13 @@ class users extends Controller
             return $v->messages()->first();
         }
 
-        $users = new User();
+        $users = new mobile_user();
         $users->name = $data['name'];
         $users->password = $data['password'];
         $status = $users->save();
 
         if($status)
-            return ["status" => "success", "data" => User::find($users->id)];
+            return ["status" => "success", "data" => mobile_user::find($users->id)];
         else
             return ["status" => "Something went wrong"];
     }
@@ -112,7 +113,7 @@ class users extends Controller
     function register_key(Request $request)    
     {
         $data = $request->all();
-        $user = User::find($data['userID']);
+        $user = mobile_user::find($data['userID']);
         $user->firebaseID = $data['token'];
         return json_encode(["status" => $status = $user->update()]);
     }
@@ -122,10 +123,11 @@ class users extends Controller
         $response = array();
 
         if($request['name'] != null)
-        if (User::where('name', 'like', $request['name'])->exists()){
-            $userID = User::where('name', 'like', '%'.$request['name'].'%')->select('id')->get();
+        if (mobile_user::where('name', 'like', '%'.$request['name'].'%')->exists())
+        {
+            $userID = mobile_user::where('name', 'like', '%'.$request['name'].'%')->select('id')->get();
             foreach ($userID as $id) {
-                $user = User::find($id);
+                $user = mobile_user::find($id);
                 array_push($response, $user);
             }
             
@@ -210,15 +212,15 @@ class users extends Controller
                         ->pluck('message_id');
 
         $messageDetails = DB::table('messages')
-                        ->select('messages.message_id', 'messages.message', 'messages.created_at', 'users.id', 'users.name')
-                        ->join('users', 'messages.user_id', 'users.id')
+                        ->select('messages.message_id', 'messages.message', 'messages.created_at', 'mobile_user.id', 'mobile_user.name')
+                        ->join('mobile_user', 'messages.user_id', 'mobile_user.id')
                         ->orderBy('messages.created_at', 'asc')
                         ->where('messages.chat_room_id', $request['chat_room_id'])
                         ->get();
 
                         if(count($messageDetails)!=0)
                             return ["messages" => $messageDetails, "error" => false];
-                        else return ["error" => true];        
+                        else return json_encode(["error" => true, "messages" => "No Message"]);        
     }
 
     function addMessage(Request $request){
@@ -234,7 +236,7 @@ class users extends Controller
 
         $userID = (int)$data['user_id'];
 
-        $user = User::where('id', '=', $request['user_id'])->select('id')->get();
+        $user = mobile_user::where('id', '=', $request['user_id'])->select('id')->get();
 
         $chatRoomTargetUser = chat_handler::where('chat_room_id', $request['chat_room_id'])
                             ->distinct()
@@ -257,11 +259,11 @@ class users extends Controller
         }
         
         // return $users;
-        $userData = User::find($user[0]->id);
+        $userData = mobile_user::find($user[0]->id);
         // echo $chatRoomUser;
         while ($i < count($users)) {
         
-        $userFIrebaseID = User::find($users[$i]);
+        $userFIrebaseID = mobile_user::find($users[$i]);
         $info = array();
         $info['user'] = $userData;
         $info['message'] = $newMessage;
@@ -293,10 +295,10 @@ class users extends Controller
 
         $userID = (int)$data['user_id'];
 
-        $user = User::where('id', '=', $request['user_id'])->select('id')->get();
+        $user = mobile_user::where('id', '=', $request['user_id'])->select('id')->get();
         // return $user[0]->id;
 
-        $userData = User::find($user[0]->id);
+        $userData = mobile_user::find($user[0]->id);
 
         $info = array();
         $info['user'] = $userData;
@@ -321,7 +323,7 @@ class users extends Controller
         $own_id = $request->input('user_id');
         $report = DB::table('approve_handler')
                 ->join('status_table', 'status_table.id', 'approve_handler.status_id')
-                ->join('report', 'report.report_ID', 'approve_handler.report_id')
+                ->join('report', 'report.id', 'approve_handler.report_id')
                 ->where('report.user_ID', $own_id)
                 ->get();
 
@@ -333,13 +335,13 @@ class users extends Controller
         $data = $request->all();
 
         $activity = activity_handler::where('action_done_on', $data['user_id'])
-                    ->select('users.id', 
-                        'users.avatar_link',
+                    ->select('mobile_user.id', 
+                        'mobile_user.avatar_link',
                         'activity_handler.report_id', 
                         'activity_handler.action_name',
                         'activity_handler.created_at',
                         'activity_handler.action_done_by')
-                    ->join('users', 'users.id', 'activity_handler.action_done_by')
+                    ->join('mobile_user', 'mobile_user.id', 'activity_handler.action_done_by')
                     ->orderBy('activity_handler.created_at', 'desc')
                     ->get();
         return json_encode($activity);

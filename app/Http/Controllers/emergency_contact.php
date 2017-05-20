@@ -9,7 +9,7 @@ class emergency_contact extends Controller
 {
     function index(){
 
-    	return response()->json(emergency_contacts::all());
+    	return response()->json(emergency_contacts::where('status', 1)->get());
 
     }
 }
